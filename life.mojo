@@ -1,4 +1,4 @@
-from gridv1 import Grid
+from grid_buffer import Grid
 from std.python import Python
 
 def run_display(
