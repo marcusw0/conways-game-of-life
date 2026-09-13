@@ -1,10 +1,10 @@
 from grid_buffer import Grid
-from std.python import Python
+from std.python import Python, PythonObject
 
 def run_display(
     var grid: Grid,
-    window_height: Int = 600,
-    window_width: Int = 600,
+    window_height: Int = 900,
+    window_width: Int = 1080,
     background_color: String = "black",
     cell_color: String = "green",
     pause: Float64 = 0.1,
@@ -32,6 +32,28 @@ def run_display(
 
     # -1 = not drawing, 0 = erase, 1 = paint
     var draw_state: Int = -1
+
+    # Geometry stays fixed until the board or window dimensions change.
+    var cell_rects = List[PythonObject]()
+    for row in range(grid.rows):
+        for col in range(grid.cols):
+            cell_rects.append(Python.tuple(
+                Float64(col) * cell_width + Float64(border_size),
+                Float64(row) * cell_height + Float64(border_size),
+                cell_width - Float64(border_size),
+                cell_height - Float64(border_size),
+            ))
+
+    var text_color = pygame.Color("white")
+    var controls_position = Python.tuple(10, window_height + 10)
+    var stats_position = Python.tuple(10, window_height + 35)
+    var label = font.render(
+        "Space: pause | N: step | C: clear | R: random | Mouse drag left/right: draw/erase",
+        True,
+        text_color,
+    )
+    var previous_stats = String("")
+    var status_label = Python.none()
 
     var running = True
     while running:
@@ -121,21 +143,12 @@ def run_display(
             for col in range(grid.cols):
                 if grid[row, col]:
                     population += 1
-                    var x = Float64(col) * cell_width + Float64(border_size)
-                    var y = Float64(row) * cell_height + Float64(border_size)
-                    var width = cell_width - Float64(border_size)
-                    var height = cell_height - Float64(border_size)
                     pygame.draw.rect(
                         window,
                         cell_fill_color,
-                        Python.tuple(x, y, width, height),
+                        cell_rects[row * grid.cols + col],
                     )
-        var label = font.render(
-            "Space: pause | N: step | C: clear | R: random | Mouse drag left/right: draw/erase",
-            True,
-            pygame.Color("white"),
-        )
-        window.blit(label, Python.tuple(10, window_height + 10))
+        window.blit(label, controls_position)
 
         var status = String("Running")
         if paused:
@@ -146,12 +159,10 @@ def run_display(
             + " | Population: "
             + String(population)
         )
-        var status_label = font.render(
-            stats,
-            True,
-            pygame.Color("white"),
-        )
-        window.blit(status_label, Python.tuple(10, window_height + 35))
+        if stats != previous_stats:
+            status_label = font.render(stats, True, text_color)
+            previous_stats = stats
+        window.blit(status_label, stats_position)
 
         # Update the display
         pygame.display.flip()
@@ -160,5 +171,5 @@ def run_display(
     pygame.quit()
 
 def main() raises:
-    var start = Grid.random(128, 128)
+    var start = Grid.random(260, 260)
     run_display(start^)
