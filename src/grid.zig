@@ -112,6 +112,15 @@ pub fn starting_pattern(self: *Grid, pattern: []const u8) !void {
     }
 }
 
+pub fn randomSeed(grid: *Grid, gen: *std.Random.DefaultPrng) void {
+    const rand = gen.random();
+
+    for (grid.data, 0..) |v, i| {
+        _ = v;
+        grid.data[i] = rand.intRangeAtMost(u8, 0, 1);
+    }
+}
+
 test "new grid check dead cells" {
     const allocator = std.testing.allocator;
 

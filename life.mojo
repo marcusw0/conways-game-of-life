@@ -3,8 +3,8 @@ from std.python import Python, PythonObject
 
 def run_display(
     var grid: Grid,
-    window_height: Int = 900,
-    window_width: Int = 1080,
+    window_height: Int = 600,
+    window_width: Int = 800,
     background_color: String = "black",
     cell_color: String = "green",
     pause: Float64 = 0.1,
@@ -13,11 +13,9 @@ def run_display(
 
     pygame.init()
 
-    var footer_height = 60
     var window = pygame.display.set_mode(
-        Python.tuple(window_width, window_height + footer_height)
+        Python.tuple(window_width, window_height)
     )
-    var font = pygame.font.Font(Python.none(), 20)
     pygame.display.set_caption("Conway's Game of Life")
 
     var cell_height = Float64(window_height) / Float64(grid.rows)
@@ -38,22 +36,11 @@ def run_display(
     for row in range(grid.rows):
         for col in range(grid.cols):
             cell_rects.append(Python.tuple(
-                Float64(col) * cell_width + Float64(border_size),
-                Float64(row) * cell_height + Float64(border_size),
+                Float64(col) * cell_width,
+                Float64(row) * cell_height,
                 cell_width - Float64(border_size),
                 cell_height - Float64(border_size),
             ))
-
-    var text_color = pygame.Color("white")
-    var controls_position = Python.tuple(10, window_height + 10)
-    var stats_position = Python.tuple(10, window_height + 35)
-    var label = font.render(
-        "Space: pause | N: step | C: clear | R: random | Mouse drag left/right: draw/erase",
-        True,
-        text_color,
-    )
-    var previous_stats = String("")
-    var status_label = Python.none()
 
     var running = True
     while running:
@@ -131,39 +118,20 @@ def run_display(
             elapsed = 0.0
         elif elapsed >= interval:
             grid.evolve()
-            elapsed = 0.0
+            elapsed -= interval
 
         # Clear the window by painting with the background color
         window.fill(background_fill_color)
-
-        var population: Int = 0
 
         # Draw each live cell in the grid
         for row in range(grid.rows):
             for col in range(grid.cols):
                 if grid[row, col]:
-                    population += 1
                     pygame.draw.rect(
                         window,
                         cell_fill_color,
                         cell_rects[row * grid.cols + col],
                     )
-        window.blit(label, controls_position)
-
-        var status = String("Running")
-        if paused:
-            status = "Paused"
-
-        var stats = (
-            status
-            + " | Population: "
-            + String(population)
-        )
-        if stats != previous_stats:
-            status_label = font.render(stats, True, text_color)
-            previous_stats = stats
-        window.blit(status_label, stats_position)
-
         # Update the display
         pygame.display.flip()
 
@@ -171,5 +139,5 @@ def run_display(
     pygame.quit()
 
 def main() raises:
-    var start = Grid.random(260, 260)
+    var start = Grid.random(120, 160)
     run_display(start^)
