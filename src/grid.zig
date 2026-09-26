@@ -42,18 +42,16 @@ pub fn deinit(self: *Grid, allocator: std.mem.Allocator) void {
     allocator.free(self.next_data);
 }
 
-pub fn draw(self: Grid) void {
+pub fn draw(self: Grid, writer: *std.Io.Writer) !void {
     for (0..self.rows) |row| {
         for (0..self.cols) |col| {
             if (self.get(row, col) == 1) {
-                std.debug.print("*", .{});
+                try writer.print("*", .{});
             } else {
-                std.debug.print(" ", .{});
+                try writer.print(" ", .{});
             }
         }
-        if (row != self.rows - 1) {
-            std.debug.print("\n", .{});
-        }
+        try writer.print("\n", .{});
     }
 }
 
@@ -92,6 +90,26 @@ pub fn evolve(self: *Grid) void {
     const old_data = self.data;
     self.data = self.next_data;
     self.next_data = old_data;
+}
+
+pub fn starting_pattern(self: *Grid, pattern: []const u8) !void {
+    var iter = std.mem.splitScalar(u8, pattern, '\n');
+    var row_index: usize = 0;
+
+    while (iter.next()) |row| : (row_index += 1) {
+        if (row.len == 0 and iter.peek() == null) {
+            break;
+        }
+        if (row.len > self.cols) { return error.MismatchedSize; }
+        if (row_index >= self.rows) { return error.MismatchedSize; }
+        for (row, 0..) |value, col_index| {
+            switch (value) {
+                '.' => self.set(row_index, col_index, 0),
+                '*' => self.set(row_index, col_index, 1),
+                else => return error.UnkownCharacter,
+            }
+        }
+    }
 }
 
 test "new grid check dead cells" {
@@ -148,4 +166,48 @@ test "test evolve blinker" {
     try std.testing.expectEqual(@as(u8, 1), grid.get(3, 2));
     try std.testing.expectEqual(@as(u8, 0), grid.get(2, 1));
     try std.testing.expectEqual(@as(u8, 0), grid.get(2, 3));
+}
+
+test "starting_pattern" {
+    const allocator = std.testing.allocator;
+
+    var grid = try init(allocator, 5, 5);
+    defer deinit(&grid, allocator);
+
+    const pattern =
+        \\.....
+        \\..*..
+        \\...*.
+        \\.***.
+        \\.....
+        ;
+
+    try starting_pattern(&grid, pattern ++ "\n");
+
+    try std.testing.expectEqual(@as(u8, 1), grid.get(1, 2));
+    try std.testing.expectEqual(@as(u8, 1), grid.get(2, 3));
+    try std.testing.expectEqual(@as(u8, 1), grid.get(3, 1));
+    try std.testing.expectEqual(@as(u8, 1), grid.get(3, 2));
+    try std.testing.expectEqual(@as(u8, 1), grid.get(3, 3));
+}
+
+test "starting_pattern MismatchedSize error" {
+    const allocator = std.testing.allocator;
+
+    var grid = try init(allocator, 5, 5);
+    defer deinit(&grid, allocator);
+
+    const pattern =
+        \\.....
+        \\..*..
+        \\...*.
+        \\.***.
+        \\.....
+        \\.....
+        ;
+
+    try std.testing.expectError(
+        error.MismatchedSize,
+        starting_pattern(&grid, pattern),
+    );
 }
