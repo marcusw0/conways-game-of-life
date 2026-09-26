@@ -1,5 +1,6 @@
 const std = @import("std");
 const grid = @import("grid.zig");
+const window = @import("window.zig");
 
 //ansi escape codes
 const esc = "\x1B";
@@ -25,45 +26,48 @@ const term_on = screen_buf_on ++ cursor_hide ++ cursor_home ++ screen_clear ++ c
 const term_off = screen_buf_off ++ cursor_show ++ nl;
 
 pub fn main(init: std.process.Init) !void {
+
     const io = init.io;
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len != 2) { return error.OnlyOneArgAllowed; }
 
-    var buf: [1024]u8 = undefined;
-    var file_writer = std.Io.File.stdout().writer(io, &buf);
-    const stdout: *std.Io.Writer = &file_writer.interface;
+    // var buf: [1024]u8 = undefined;
+    // var file_writer = std.Io.File.stdout().writer(io, &buf);
+    // const stdout: *std.Io.Writer = &file_writer.interface;
 
-    var buffer: [2048]u8 = undefined;
+    var buffer: [40 * 1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const allocator = fba.allocator();
 
     const fileContents = try getFileContents(io, allocator, args[1]);
     defer allocator.free(fileContents);
 
-    var board = try grid.init(allocator, 20, 40);
+    var board = try grid.init(allocator, 120, 160);
     defer grid.deinit(&board, allocator);
 
     try grid.starting_pattern(&board, fileContents);
 
-    defer {
-        stdout.print(term_off, .{}) catch {};
-        stdout.flush() catch {};
-    }
+    try window.run(io, &board);
 
-    try stdout.print(term_on, .{});
-    try stdout.flush();
-
-    var i: u8 = 0;
-    while (i < 20) : (i += 1) {
-        try stdout.print(cursor_home, .{});
-
-        try grid.draw(board, stdout);
-        try stdout.flush();
-
-        grid.evolve(&board);
-        try io.sleep(std.Io.Duration.fromMilliseconds(200), .awake);
-    }
+    // defer {
+    //     stdout.print(term_off, .{}) catch {};
+    //     stdout.flush() catch {};
+    // }
+    //
+    // try stdout.print(term_on, .{});
+    // try stdout.flush();
+    //
+    // var i: u8 = 0;
+    // while (i < 20) : (i += 1) {
+    //     try stdout.print(cursor_home, .{});
+    //
+    //     try grid.draw(board, stdout);
+    //     try stdout.flush();
+    //
+    //     grid.evolve(&board);
+    //     try io.sleep(std.Io.Duration.fromMilliseconds(200), .awake);
+    // }
 }
 
 fn getFileContents(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]u8 {

@@ -2,6 +2,7 @@
 .pixi/*
 !.pixi/config.toml
 
-# Zig build artifacts
+# Zig build artifacts and deps
 .zig-cache/
 zig-out/
+zig-pkg/
