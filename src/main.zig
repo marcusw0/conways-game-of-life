@@ -72,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
 
 fn getFileContents(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     const contents = try std.Io.Dir.readFileAlloc(
-        std.Io.Dir.cwd(), io, path, allocator, .limited(256));
+        std.Io.Dir.cwd(), io, path, allocator, .limited(512));
 
     return contents;
 }
