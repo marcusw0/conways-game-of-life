@@ -1,6 +1,9 @@
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+mojo/.pixi/*
+!mojo/.pixi/config.toml
+mojo/life
 
 # Zig build artifacts and deps
 .zig-cache/
