@@ -32,47 +32,27 @@ pub fn main(init: std.process.Init) !void {
 
     if (args.len != 2) { return error.OnlyOneArgAllowed; }
 
-    // var buf: [1024]u8 = undefined;
-    // var file_writer = std.Io.File.stdout().writer(io, &buf);
-    // const stdout: *std.Io.Writer = &file_writer.interface;
+    const allocator = std.heap.page_allocator;
+    // var buffer: [256 * 1024]u8 = undefined;
+    // var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    // const allocator = fba.allocator();
 
-    var buffer: [40 * 1024]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buffer);
-    const allocator = fba.allocator();
-
-    const fileContents = try getFileContents(io, allocator, args[1]);
-    defer allocator.free(fileContents);
-
-    var board = try grid.init(allocator, 120, 160);
+    var board = try grid.init(allocator, 1000, 2000);
     defer grid.deinit(&board, allocator);
 
-    try grid.starting_pattern(&board, fileContents);
+    {
+        const fileContents = try getFileContents(io, allocator, args[1]);
+        defer allocator.free(fileContents);
+
+        try grid.starting_pattern(&board, fileContents, 331, 625);
+    }
 
     try window.run(io, &board);
-
-    // defer {
-    //     stdout.print(term_off, .{}) catch {};
-    //     stdout.flush() catch {};
-    // }
-    //
-    // try stdout.print(term_on, .{});
-    // try stdout.flush();
-    //
-    // var i: u8 = 0;
-    // while (i < 20) : (i += 1) {
-    //     try stdout.print(cursor_home, .{});
-    //
-    //     try grid.draw(board, stdout);
-    //     try stdout.flush();
-    //
-    //     grid.evolve(&board);
-    //     try io.sleep(std.Io.Duration.fromMilliseconds(200), .awake);
-    // }
 }
 
 fn getFileContents(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     const contents = try std.Io.Dir.readFileAlloc(
-        std.Io.Dir.cwd(), io, path, allocator, .limited(512));
+        std.Io.Dir.cwd(), io, path, allocator, .limited(256 * 1024));
 
     return contents;
 }
