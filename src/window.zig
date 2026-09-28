@@ -85,7 +85,7 @@ pub fn run(io: std.Io, board: *grid.Grid) !void {
 
         for (0..board.rows) |row| {
             for (0..board.cols) |col| {
-                if (board.get(row, col) == 1) {
+                if (board.get(col, row) == 1) {
                     population += 1;
                     const rec =rl.Rectangle{
                         .height = cell_size * 0.8,
