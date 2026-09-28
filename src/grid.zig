@@ -92,7 +92,7 @@ pub fn evolve(self: *Grid) void {
     self.next_data = old_data;
 }
 
-pub fn starting_pattern(self: *Grid, pattern: []const u8) !void {
+pub fn starting_pattern(self: *Grid, pattern: []const u8, start_row: usize, start_col: usize) !void {
     var iter = std.mem.splitScalar(u8, pattern, '\n');
     var row_index: usize = 0;
 
@@ -104,8 +104,8 @@ pub fn starting_pattern(self: *Grid, pattern: []const u8) !void {
         if (row_index >= self.rows) { return error.MismatchedSize; }
         for (row, 0..) |value, col_index| {
             switch (value) {
-                '.' => self.set(row_index, col_index, 0),
-                '*' => self.set(row_index, col_index, 1),
+                '.' => self.set(start_row + row_index, start_col + col_index, 0),
+                '*' => self.set(start_row + row_index, start_col + col_index, 1),
                 else => return error.UnkownCharacter,
             }
         }

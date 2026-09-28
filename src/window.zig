@@ -6,16 +6,16 @@ const GameState = struct {
     screenWidth: i32 = 800,
     screenHeight: i32 = 600,
     footerHeight: i32 = 40,
-    fontSize: i32 = 12,
+    fontSize: f32 = 16,
     text_buffer: [128]u8 = undefined,
     step_interval: f32 = 0.1,
     elapsed: f32 = 0,
-    paused: bool = false,
-    controls: [:0]const u8 = "Space: pause | N: step | R: randomize",
+    controls: [:0]const u8 = "Space: pause | N: step | R: randomize | Scroll: zoom",
 };
 
 pub fn run(io: std.Io, board: *grid.Grid) !void {
     var game = GameState{};
+    var paused: bool = false;
 
     var prng: std.Random.DefaultPrng = .init(blk: {
         var seed: u64 = undefined;
@@ -27,7 +27,16 @@ pub fn run(io: std.Io, board: *grid.Grid) !void {
     rl.initWindow(game.screenWidth, game.screenHeight, "Conways Game of Life");
     defer rl.closeWindow();
 
+    const font = try rl.loadFont("assets/fonts/Lexend-Regular.ttf");
+    defer rl.unloadFont(font);
+
     rl.setTargetFPS(60);
+    var camera = rl.Camera2D{
+        .target = .{ .x = 0, .y = 0 },
+        .offset = .{ .x = 0, .y = 0 },
+        .rotation = 0,
+        .zoom = 1,
+    };
 
     while (!rl.windowShouldClose()) {
         while (true) {
@@ -35,14 +44,25 @@ pub fn run(io: std.Io, board: *grid.Grid) !void {
             if (key == .null) break;
 
             switch (key) {
-                .space => { game.paused = !game.paused; game.elapsed = 0; },
-                .n => if (game.paused) { grid.evolve(board); },
-                .r => if (game.paused) { grid.randomSeed(board, &prng); },
+                .space => { paused = !paused; game.elapsed = 0; },
+                .n => if (paused) { grid.evolve(board); },
+                .r => if (paused) { grid.randomSeed(board, &prng); },
                 else => {},
             }
         }
 
-        if (!game.paused) {
+        const wheel = rl.getMouseWheelMove();
+        if (wheel != 0) {
+            camera.zoom = std.math.clamp(camera.zoom + wheel * 0.1, 0.1, 20.0);
+        }
+
+        if (rl.isMouseButtonDown(.middle)) {
+            const delta = rl.getMouseDelta();
+            camera.target.x -= delta.x / camera.zoom;
+            camera.target.y -= delta.y / camera.zoom;
+        }
+
+        if (!paused) {
             game.elapsed += rl.getFrameTime();
             if (game.elapsed >= game.step_interval) {
                 grid.evolve(board);
@@ -51,12 +71,7 @@ pub fn run(io: std.Io, board: *grid.Grid) !void {
         }
 
         const win_height = rl.getScreenHeight() - game.footerHeight;
-
-        const cell_width = @as(f32, @floatFromInt(rl.getScreenWidth())) /
-            @as(f32, @floatFromInt(board.cols));
-
-        const cell_height = @as(f32, @floatFromInt(win_height)) /
-            @as(f32, @floatFromInt(board.rows));
+        const cell_size: f32 = 5;
 
         var population: u32 = 0;
 
@@ -65,28 +80,40 @@ pub fn run(io: std.Io, board: *grid.Grid) !void {
 
         rl.clearBackground(.black);
 
+        rl.beginScissorMode(0, 0, rl.getScreenWidth(), @max(0, win_height));
+        rl.beginMode2D(camera);
+
         for (0..board.rows) |row| {
             for (0..board.cols) |col| {
                 if (board.get(row, col) == 1) {
                     population += 1;
                     const rec =rl.Rectangle{
-                        .height = cell_height * 0.8,
-                        .width  = cell_width * 0.8,
-                        .x = @as(f32, @floatFromInt(col)) * cell_width,
-                        .y = @as(f32, @floatFromInt(row)) * cell_height,
+                        .height = cell_size * 0.8,
+                        .width  = cell_size * 0.8,
+                        .x = @as(f32, @floatFromInt(col)) * cell_size,
+                        .y = @as(f32, @floatFromInt(row)) * cell_size,
                     };
                     rl.drawRectangleRec(rec, .green);
                 }
             }
         }
+        rl.endMode2D();
+        rl.endScissorMode();
+
         const status_text = try std.fmt.bufPrintZ(
             &game.text_buffer,
-            "{s} | Population: {d}",
-            .{ if (game.paused) "Paused" else "Running", population},
+            "{s} | Population: {d} | Zoom: {d:.1}x",
+            .{ if (paused) "Paused" else "Running", population, camera.zoom },
         );
 
         rl.drawRectangle(0, win_height, rl.getScreenWidth(), game.footerHeight, .blank);
-        rl.drawText(game.controls, 0, win_height, game.fontSize, .ray_white);
-        rl.drawText(status_text, 0, win_height + 18, game.fontSize, .ray_white);
+        rl.drawTextEx(font, game.controls,
+            .{ .x = 10, .y = @floatFromInt(win_height) },
+            game.fontSize, 1, .ray_white,
+            );
+        rl.drawTextEx(font, status_text,
+            .{ .x = 10, .y = @floatFromInt(win_height + 18) },
+            game.fontSize, 1, .ray_white,
+            );
     }
 }
