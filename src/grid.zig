@@ -1,37 +1,97 @@
 const std = @import("std");
 
+// if x = 70, y = 12
+//const word_idx = x / 64; // which word contains it
+//const bit_idx: u6 = @intCast(x % 64); // where inside the word
+// Cell(70, 12) => grid[12][1], bit 6
+
+//const mask = @as(u64, 1) << bit_idx;
+//grid[y][word_idx] |= mask;
+
 pub const Grid = struct {
     rows: usize,
     cols: usize,
-    data: []u8,
-    next_data: []u8,
+    words_per_row: usize,
+    data: []u64,
+    next_data: []u64,
 
-    pub fn get(self: Grid, row: usize, col: usize) u8 {
-        std.debug.assert(row < self.rows);
-        std.debug.assert(col < self.cols);
-        return self.data[row * self.cols + col];
+    pub fn get(self: Grid, col: usize, row: usize) u1 {
+        std.debug.assert(col < self.cols and row < self.rows);
+
+        const word_idx = row * self.words_per_row + (col / 64);
+        const bit_idx: u6 = @intCast(col % 64);
+
+        const word = self.data[word_idx];
+        const mask = @as(u64, 1) << bit_idx;
+
+        if (word & mask == 0) {
+            return 0;
+        } else {
+            return 1;
+        }
     }
 
-    pub fn set(self: *Grid, row: usize, col: usize, value: u8) void {
-        std.debug.assert(row < self.rows);
-        std.debug.assert(col < self.cols);
-        self.data[row * self.cols + col] = value;
+    pub fn set(self: *Grid, col: usize, row: usize, value: u1) void {
+        std.debug.assert(col < self.cols and row < self.rows);
+
+        const word_idx = row * self.words_per_row + (col / 64);
+        const bit_idx: u6 = @intCast(col % 64);
+
+        // u8, bit_idx 3 => 00001000
+        const mask = @as(u64, 1) << bit_idx;
+
+        // what to write
+        const new_value = @as(u64, value) << bit_idx;
+
+        const word = self.data[word_idx];
+
+        // word            00101100
+        // ~mask           11110111
+        // word & ~mask    00100100
+        // new_value       00000000
+        // (&) | new_value 00100100
+        self.data[word_idx] = (word & ~mask) | new_value;
+    }
+
+    pub fn setNext(self: *Grid, col: usize, row: usize, value: u1) void {
+        std.debug.assert(col < self.cols and row < self.rows);
+
+        const word_idx = row * self.words_per_row + (col / 64);
+        const bit_idx: u6 = @intCast(col % 64);
+
+        // u8, bit_idx 3 => 00001000
+        const mask = @as(u64, 1) << bit_idx;
+
+        // what to write
+        const new_value = @as(u64, value) << bit_idx;
+
+        const word = self.next_data[word_idx];
+
+        // word            00101100
+        // ~mask           11110111
+        // word & ~mask    00100100
+        // new_value       00000000
+        // (&) | new_value 00100100
+        self.next_data[word_idx] = (word & ~mask) | new_value;
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, rows: usize, cols: usize) !Grid {
-    const count: usize = rows * cols;
+pub fn init(allocator: std.mem.Allocator, cols: usize, rows: usize) !Grid {
+    const wpr = (cols + 63) / 64;
+    const word_count = rows * wpr;
 
-    const data_buffer = try allocator.alloc(u8, count);
-    @memset(data_buffer, 0);
+    const data_buffer = try allocator.alloc(u64, word_count);
     errdefer allocator.free(data_buffer);
 
-    const next_buffer = try allocator.alloc(u8, count);
+    const next_buffer = try allocator.alloc(u64, word_count);
+
+    @memset(data_buffer, 0);
     @memset(next_buffer, 0);
 
     return Grid{
         .rows = rows,
         .cols = cols,
+        .words_per_row = wpr,
         .data = data_buffer,
         .next_data = next_buffer,
     };
@@ -40,12 +100,13 @@ pub fn init(allocator: std.mem.Allocator, rows: usize, cols: usize) !Grid {
 pub fn deinit(self: *Grid, allocator: std.mem.Allocator) void {
     allocator.free(self.data);
     allocator.free(self.next_data);
+    self.* = undefined;
 }
 
 pub fn draw(self: Grid, writer: *std.Io.Writer) !void {
     for (0..self.rows) |row| {
         for (0..self.cols) |col| {
-            if (self.get(row, col) == 1) {
+            if (self.get(col, row) == 1) {
                 try writer.print("*", .{});
             } else {
                 try writer.print(" ", .{});
@@ -67,23 +128,22 @@ pub fn evolve(self: *Grid) void {
             const col_left = (j + self.cols - 1) % self.cols;
             const col_right = (j + 1) % self.cols;
 
-            const num_neighbors = (
-                self.get(row_above, col_left)
-                + self.get(row_above, j)
-                + self.get(row_above, col_right)
-                + self.get(i, col_left)
-                + self.get(i, col_right)
-                + self.get(row_below, col_left)
-                + self.get(row_below, j)
-                + self.get(row_below, col_right)
-            );
+            var num_neighbors: u4 = 0;
+            num_neighbors += self.get(col_left, row_above);
+            num_neighbors += self.get(j, row_above);
+            num_neighbors += self.get(col_right, row_above);
+            num_neighbors += self.get(col_left, i);
+            num_neighbors += self.get(col_right, i);
+            num_neighbors += self.get(col_left, row_below);
+            num_neighbors += self.get(j, row_below);
+            num_neighbors += self.get(col_right, row_below);
 
-            var new_state: u8 = 0;
-            if (num_neighbors == 3 or (self.get(i, j) == 1 and num_neighbors == 2)) {
+            var new_state: u1 = 0;
+            if (num_neighbors == 3 or (self.get(j, i) == 1 and num_neighbors == 2)) {
                 new_state = 1;
             }
 
-            self.next_data[i * self.cols + j] = new_state;
+            self.setNext(j, i, new_state);
         }
     }
 
@@ -104,8 +164,8 @@ pub fn starting_pattern(self: *Grid, pattern: []const u8, start_row: usize, star
         if (row_index >= self.rows) { return error.MismatchedSize; }
         for (row, 0..) |value, col_index| {
             switch (value) {
-                '.' => self.set(start_row + row_index, start_col + col_index, 0),
-                '*' => self.set(start_row + row_index, start_col + col_index, 1),
+                '.' => self.set(start_col + col_index, start_row + row_index, 0),
+                '*' => self.set(start_col + col_index, start_row + row_index, 1),
                 else => return error.UnkownCharacter,
             }
         }
@@ -114,10 +174,13 @@ pub fn starting_pattern(self: *Grid, pattern: []const u8, start_row: usize, star
 
 pub fn randomSeed(grid: *Grid, gen: *std.Random.DefaultPrng) void {
     const rand = gen.random();
+    var i: usize = 0;
 
-    for (grid.data, 0..) |v, i| {
-        _ = v;
-        grid.data[i] = rand.intRangeAtMost(u8, 0, 1);
+    while (i < grid.rows) : (i += 1) {
+        var j: usize = 0;
+        while (j < grid.cols) : (j += 1) {
+            grid.set(j, i, rand.intRangeAtMost(u1, 0, 1));
+        }
     }
 }
 
