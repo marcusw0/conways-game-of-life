@@ -160,8 +160,12 @@ pub fn starting_pattern(self: *Grid, pattern: []const u8, start_row: usize, star
         if (row.len == 0 and iter.peek() == null) {
             break;
         }
-        if (row.len > self.cols) { return error.MismatchedSize; }
-        if (row_index >= self.rows) { return error.MismatchedSize; }
+        if (row.len > self.cols) {
+            return error.MismatchedSize;
+        }
+        if (row_index >= self.rows) {
+            return error.MismatchedSize;
+        }
         for (row, 0..) |value, col_index| {
             switch (value) {
                 '.' => self.set(start_col + col_index, start_row + row_index, 0),
@@ -252,7 +256,7 @@ test "starting_pattern" {
         \\...*.
         \\.***.
         \\.....
-        ;
+    ;
 
     try starting_pattern(&grid, pattern ++ "\n");
 
@@ -276,7 +280,7 @@ test "starting_pattern MismatchedSize error" {
         \\.***.
         \\.....
         \\.....
-        ;
+    ;
 
     try std.testing.expectError(
         error.MismatchedSize,
